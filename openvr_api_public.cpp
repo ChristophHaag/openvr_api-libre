@@ -755,12 +755,12 @@ public:
             if (fulldbg) printf("osvr rotation quat %f %f %f %f\n", rotation[0], rotation[1], rotation[2], rotation[3]);
 
             glm::vec3 translation(state.translation.data[0], state.translation.data[1], state.translation.data[2]);
-            if (true) printf("osvr pos %f %f %f\n", translation[0], translation[1], translation[2]);
+            if (fulldbg) printf("osvr pos %f %f %f\n", translation[0], translation[1], translation[2]);
 
             //glm::mat3 m = glm::mat3_cast(rotation);
 
-            glm::mat4 m = glm::mat4_cast(rotation);
-            glm::translate(m, translation);
+            glm::mat4 rotmat = glm::mat4_cast(rotation);
+            glm::mat4 m = glm::translate(rotmat, translation);
 
             pRenderPoseArray[0].mDeviceToAbsoluteTracking.m[0][0] = m[0][0];
             pRenderPoseArray[0].mDeviceToAbsoluteTracking.m[0][1] = m[0][1];
@@ -777,6 +777,16 @@ public:
             pRenderPoseArray[0].mDeviceToAbsoluteTracking.m[2][2] = m[2][2];
             pRenderPoseArray[0].mDeviceToAbsoluteTracking.m[2][3] = m[2][3];
 
+            if (fulldbg) {
+                for (int i = 0; i < 4; i++) {
+                    for (int j = 0; j < 4; j++) {
+                        std::cout << m[i][j] << " ";
+                    }
+                    std::cout << std::endl;
+                }
+                std::cout << std::endl;
+                std::cout << std::endl;
+            }
 
             pRenderPoseArray[0].eTrackingResult = ETrackingResult::TrackingResult_Running_OK;
 
