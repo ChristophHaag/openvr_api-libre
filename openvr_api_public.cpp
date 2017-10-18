@@ -7,10 +7,6 @@
 #include <iostream>
 #include <vector>
 
-#include <osvr/ClientKit/ContextC.h>
-#include <osvr/ClientKit/InterfaceC.h>
-#include <osvr/ClientKit/InterfaceStateC.h>
-
 //for the compositor
 #include <SDL.h>
 
@@ -25,6 +21,15 @@
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 
+#include <osvr/ClientKit/Context.h>
+#include <osvr/ClientKit/Interface.h>
+
+#include <osvr/RenderKit/RenderManager.h>
+
+#include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
+#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
+
+
 using vr::EVRInitError;
 using vr::IVRSystem;
 using vr::VRInitError_None;
@@ -35,11 +40,12 @@ namespace vr
 bool fulldbg = false;
 
 static void *g_pVRModule = NULL;
-
-OSVR_ClientContext osvrctx;
-OSVR_ClientInterface head;
-OSVR_ClientInterface lh;
-OSVR_ClientInterface rh;
+osvr::renderkit::RenderManager* render;
+osvr::clientkit::ClientContext *context;
+int w;
+int h;
+osvr::renderkit::OSVR_ProjectionMatrix projl;
+osvr::renderkit::OSVR_ProjectionMatrix projr;
 
 typedef void* (*VRClientCoreFactoryFn)(const char *pInterfaceName, int *pReturnCode);
 
@@ -54,10 +60,76 @@ uint32_t VR_GetInitToken()
 EVRInitError VR_LoadHmdSystemInternal();
 void CleanupInternalInterfaces();
 
+// Callback to set up for rendering into a given eye (viewpoint and projection).
+void SetupEye(
+    void* userData //< Passed into SetViewProjectionCallback
+    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
+    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
+    , osvr::renderkit::OSVR_ViewportDescription
+    viewport //< Viewport set by RenderManager
+    , osvr::renderkit::OSVR_ProjectionMatrix
+    projection //< Projection matrix set by RenderManager
+    , size_t whichEye //< Which eye are we setting up for?
+) {
+    std::cout << "Setting up OSVR Rendermanager Eye..." << std::endl;
+    // Make sure our pointers are filled in correctly.  The config file selects
+    // the graphics library to use, and may not match our needs.
+    if (library.OpenGL == nullptr) {
+        std::cerr
+        << "SetupEye: No OpenGL GraphicsLibrary, this should not happen"
+        << std::endl;
+        return;
+    }
+    if (buffers.OpenGL == nullptr) {
+        std::cerr << "SetupEye: No OpenGL RenderBuffer, this should not happen"
+        << std::endl;
+        return;
+    }
+
+    std::cout << "Got eye from OSVR: " << whichEye << std::endl;
+    std::cout << "viewport: " << viewport.width << "x" << viewport.height << " " << viewport.left << "" << viewport.lower << std::endl;
+
+    // Set the viewport
+    glViewport(static_cast<GLint>(viewport.left),
+               static_cast<GLint>(viewport.lower),
+               static_cast<GLint>(viewport.width),
+               static_cast<GLint>(viewport.height));
+}
+
+// Callback to set up a given display, which may have one or more eyes in it
+void SetupDisplay(
+    void* userData //< Passed into SetDisplayCallback
+    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
+    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
+) {
+    std::cout << "Setting up OSVR Rendermanager Display..." << std::endl;
+    // Make sure our pointers are filled in correctly.  The config file selects
+    // the graphics library to use, and may not match our needs.
+    if (library.OpenGL == nullptr) {
+        std::cerr
+        << "SetupDisplay: No OpenGL GraphicsLibrary, this should not happen"
+        << std::endl;
+        return;
+    }
+    if (buffers.OpenGL == nullptr) {
+        std::cerr
+        << "SetupDisplay: No OpenGL RenderBuffer, this should not happen"
+        << std::endl;
+        return;
+    }
+
+    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
+
+    // Clear the screen to black and clear depth
+    //glClearColor(0, 0, 0, 1.0f);
+    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
 uint32_t VR_InitInternal( EVRInitError *peError, vr::EVRApplicationType eApplicationType )
 {
         printf("initinternal create OSVR context\n");
-        osvrctx = osvrClientInit("de.haagch.SteamVR-OSVR", 0);
+        context = new osvr::clientkit::ClientContext("de.haagch.SteamVR-OSVR");
+
 
         *peError = VRInitError_None;
 	return ++g_nVRToken;
@@ -66,7 +138,7 @@ uint32_t VR_InitInternal( EVRInitError *peError, vr::EVRApplicationType eApplica
 void VR_ShutdownInternal()
 {
         printf("shutdowninternal, destroy OSVR context\n");
-        //ohmd_ctx_destroy(ctx);
+        //context->free();
 	++g_nVRToken;
 }
 
@@ -191,12 +263,52 @@ class OSVRHMDRenderModels : vr::IVRRenderModels {
 
 class OSVRHMDIVRSystem : IVRSystem
 {
-    int w;
-    int h;
+
 public:
     OSVRHMDIVRSystem() {
-        //ohmd_device_geti(hmd, OHMD_SCREEN_HORIZONTAL_RESOLUTION, &w);
-        //ohmd_device_geti(hmd, OHMD_SCREEN_VERTICAL_RESOLUTION, &h);
+        render = osvr::renderkit::createRenderManager(context->get(), "OpenGL");
+        if ((render == nullptr) || (!render->doingOkay())) {
+            std::cerr << "Could not create RenderManager" << std::endl;
+            return;
+        }
+
+        //render->SetViewProjectionCallback(SetupEye);
+        //render->SetDisplayCallback(SetupDisplay);
+
+        osvr::renderkit::RenderManager::OpenResults ret = render->OpenDisplay();
+        if (ret.status == osvr::renderkit::RenderManager::OpenStatus::FAILURE) {
+            std::cerr << "Could not open display" << std::endl;
+            delete render;
+            return;
+        }
+        if (ret.library.OpenGL == nullptr) {
+            std::cerr << "Attempted to run an OpenGL program with a config file "
+            << "that specified a different rendering library."
+            << std::endl;
+            return;
+        }
+
+        osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = ret.library.OpenGL;
+        glEnable(GL_DEPTH_TEST);
+
+        //render->AddRenderCallback("/", DrawWorld);
+
+        //TODO
+        context->update();
+        std::vector<osvr::renderkit::RenderInfo> renderInfo = render->GetRenderInfo();
+        //w = ri.viewport.width;
+        //h = ri.viewport.height;
+        w = 0;
+        h = 0;
+        for (size_t i = 0; i < renderInfo.size(); i++) {
+            std::cout << i << ": w,h " << renderInfo.at(i).viewport.width << "," << renderInfo.at(i).viewport.height << std::endl;
+            h = renderInfo.at(i).viewport.height;
+            w += renderInfo.at(i).viewport.width;
+        }
+        std::cout << "set w,h to " << w << "," << h << std::endl;
+
+        projl = renderInfo.at(0).projection;
+        projr = renderInfo.at(1).projection;
     }
 
     void GetRecommendedRenderTargetSize( uint32_t *pnWidth, uint32_t *pnHeight ) {
@@ -214,40 +326,35 @@ public:
             printf("right ");
         }
 
+        osvr::renderkit::OSVR_ProjectionMatrix osvrprojection = (eEye == EVREye::Eye_Left ? projl : projr);
+        GLdouble projection[16];
+        osvr::renderkit::OSVR_Projection_to_OpenGL(projection, osvrprojection);
 
-        float fov;
-        float aspect;
-        if (eEye == EVREye::Eye_Left) {
-            //ohmd_device_getf(hmd, OHMD_LEFT_EYE_FOV, &fov);
-            //ohmd_device_getf(hmd, OHMD_LEFT_EYE_ASPECT_RATIO, &aspect);
-        } else {
-            //ohmd_device_getf(hmd, OHMD_RIGHT_EYE_FOV, &fov);
-            //ohmd_device_getf(hmd, OHMD_RIGHT_EYE_ASPECT_RATIO, &aspect);
+        for (auto const& value : projection) {
+            std::cout << value << "; ";
         }
-        printf(" with fov %f, aspect %f: ", fov, aspect);
-        glm::mat4 Projection = glm::perspective(fov, aspect, fNearZ, fFarZ);
-        printf("%s\n", glm::to_string(Projection).c_str());
+        std::cout << std::endl;
 
         HmdMatrix44_t matrix;
-        matrix.m[0][0] = Projection[0][0];
-        matrix.m[0][1] = Projection[0][1];
-        matrix.m[0][2] = Projection[0][2];
-        matrix.m[0][3] = Projection[0][3];
+        matrix.m[0][0] = projection[0];
+        matrix.m[0][1] = projection[1];
+        matrix.m[0][2] = projection[2];
+        matrix.m[0][3] = projection[3];
 
-        matrix.m[1][0] = Projection[1][0];
-        matrix.m[1][1] = Projection[1][1];
-        matrix.m[1][2] = Projection[1][2];
-        matrix.m[1][3] = Projection[1][3];
+        matrix.m[1][0] = projection[4];
+        matrix.m[1][1] = projection[5];
+        matrix.m[1][2] = projection[6];
+        matrix.m[1][3] = projection[7];
 
-        matrix.m[2][0] = Projection[2][0];
-        matrix.m[2][1] = Projection[2][1];
-        matrix.m[2][2] = Projection[2][2];
-        matrix.m[2][3] = Projection[2][3];
+        matrix.m[2][0] = projection[8];
+        matrix.m[2][1] = projection[9];
+        matrix.m[2][2] = projection[10];
+        matrix.m[2][3] = projection[11];
 
-        matrix.m[3][0] = Projection[3][0];
-        matrix.m[3][1] = Projection[3][1];
-        matrix.m[3][2] = Projection[3][2];
-        matrix.m[3][3] = Projection[3][3];
+        matrix.m[3][0] = projection[12];
+        matrix.m[3][1] = projection[13];
+        matrix.m[3][2] = projection[14];
+        matrix.m[3][3] = projection[15];
 
         return matrix;
     }
@@ -582,163 +689,15 @@ void checkSDLError(int line = -1)
 class OSVRHMDCompositor : IVRCompositor
 {
 private:
-    SDL_Window *compositorwindow = NULL;
     SDL_Window *clientwindow = NULL;
     SDL_GLContext clientcontext;
-    SDL_GLContext compositorcontext;
-    SDL_Renderer *renderer;
     int w;
     int eyew;
     int h;
     SDL_Texture *texture;
-    GLuint shader_program;
-    GLint texture_location;
-    GLuint vaol, vbol, vaor, vbor;
 
-    void mkvaovbo(bool leftEye) {
-        if (leftEye) {
-            glGenVertexArrays(1, &vaol);
-            glBindVertexArray(vaol);
-
-            glGenBuffers(1, &vbol);
-            glBindBuffer(GL_ARRAY_BUFFER, vbol);
-
-            GLfloat vertexData[] = {
-                //  X     Y     Z           U     V
-                0.0f, 1.0f, 0.0f,       1.0f, 1.0f, // vertex 0
-                -1.0f, 1.0f, 0.0f,       0.0f, 1.0f, // vertex 1
-                0.0f,-1.0f, 0.0f,       1.0f, 0.0f, // vertex 2
-                -1.0f,-1.0f, 0.0f,       0.0f, 0.0f, // vertex 3
-            }; // half fullscreen quad, 4 vertices with 5 components (floats) each
-            glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat)*4*5, vertexData, GL_STATIC_DRAW);
-
-        } else {
-            glGenVertexArrays(1, &vaor);
-            glBindVertexArray(vaor);
-
-            glGenBuffers(1, &vbor);
-            glBindBuffer(GL_ARRAY_BUFFER, vbor);
-
-            GLfloat vertexData[] = {
-                //  X     Y     Z           U     V
-                1.0f, 1.0f, 0.0f,       1.0f, 1.0f, // vertex 0
-                0.0f, 1.0f, 0.0f,       0.0f, 1.0f, // vertex 1
-                1.0f,-1.0f, 0.0f,       1.0f, 0.0f, // vertex 2
-                0.0f,-1.0f, 0.0f,       0.0f, 0.0f, // vertex 3
-            }; // half fullscreen quad, 4 vertices with 5 components (floats) each
-            glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat)*4*5, vertexData, GL_STATIC_DRAW);
-
-        }
-
-
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), (char*)0 + 0*sizeof(GLfloat));
-
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5*sizeof(GLfloat), (char*)0 + 3*sizeof(GLfloat));
-
-        GLuint ibo;
-        glGenBuffers(1, &ibo);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-
-        GLuint indexData[] = {
-            0,1,2, // first triangle
-            2,1,3, // second triangle
-        };
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint)*2*3, indexData, GL_STATIC_DRAW);
-        glBindVertexArray(0);
-    }
 public:
         OSVRHMDCompositor() {
-            SDL_Init(SDL_INIT_VIDEO);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-
-
-            //ohmd_device_geti(hmd, OHMD_SCREEN_HORIZONTAL_RESOLUTION, &w);
-            eyew = w/2;
-            //ohmd_device_geti(hmd, OHMD_SCREEN_VERTICAL_RESOLUTION, &h);
-
-            clientwindow = SDL_GL_GetCurrentWindow();
-            clientcontext = SDL_GL_GetCurrentContext();
-            printf("current GL context %p\n", clientcontext);
-
-
-            uint32_t windowflags = SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_BORDERLESS;
-            compositorwindow = SDL_CreateWindow("libopenVR Compositor (OSVR)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, windowflags);
-            if (compositorwindow == NULL) {
-                printf("Could not create window: %s\n", SDL_GetError());
-            }
-            checkSDLError(__LINE__);
-
-            // current context is the client application rendering
-            SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
-            compositorcontext = SDL_GL_CreateContext(compositorwindow);
-
-
-            SDL_GL_MakeCurrent(compositorwindow, compositorcontext);
-
-            // credit: https://github.com/progschj/OpenGL-Examples/blob/master/03texture.cpp
-
-            std::string vertex_source =
-                "#version 330\n"
-                "layout(location = 0) in vec4 vposition;\n"
-                "layout(location = 1) in vec2 vtexcoord;\n"
-                "out vec2 ftexcoord;\n"
-                "void main() {\n"
-                "   ftexcoord = vtexcoord;\n"
-                "   gl_Position = vposition;\n"
-                "}\n";
-
-            std::string fragment_source =
-                "#version 330\n"
-                "uniform sampler2D tex;\n" // texture uniform
-                "in vec2 ftexcoord;\n"
-                "layout(location = 0) out vec4 FragColor;\n"
-                "void main() {\n"
-                "   FragColor = texture(tex, ftexcoord);\n"
-                "}\n";
-
-            GLuint vertex_shader, fragment_shader;
-
-            // we need these to properly pass the strings
-            const char *source;
-            int length;
-
-            // create and compiler vertex shader
-            vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-            source = vertex_source.c_str();
-            length = vertex_source.size();
-            glShaderSource(vertex_shader, 1, &source, &length);
-            glCompileShader(vertex_shader);
-            //TODO: error checking
-
-            // create and compiler fragment shader
-            fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-            source = fragment_source.c_str();
-            length = fragment_source.size();
-            glShaderSource(fragment_shader, 1, &source, &length);
-            glCompileShader(fragment_shader);
-            //TODO: error checking
-
-
-            // create program
-            shader_program = glCreateProgram();
-
-            // attach shaders
-            glAttachShader(shader_program, vertex_shader);
-            glAttachShader(shader_program, fragment_shader);
-
-            // link the program and check for errors
-            glLinkProgram(shader_program);
-            //TODO: error checking
-
-            texture_location = glGetUniformLocation(shader_program, "tex");
-
-            mkvaovbo(true);
-            mkvaovbo(false);
-
-            SDL_GL_MakeCurrent(clientwindow, clientcontext);
 
         }
 
@@ -822,7 +781,7 @@ public:
             unsigned int cast = (unsigned int) handle;
             GLuint gluint = reinterpret_cast<GLuint>(cast);
             //printf("gluint %d\n", gluint);
-
+/*
             SDL_GL_MakeCurrent(compositorwindow, compositorcontext);
 
             if (eEye == EVREye::Eye_Left) {
@@ -862,6 +821,7 @@ public:
 
 
             SDL_GL_MakeCurrent(clientwindow, clientcontext);
+            */
 
 
             return VRCompositorError_None;
@@ -949,7 +909,7 @@ public:
 
 	void CompositorQuit() {
             printf("compositor quit\n");
-            SDL_DestroyWindow(compositorwindow);
+            //SDL_DestroyWindow(compositorwindow);
             SDL_Quit();
         }
 

@@ -6,14 +6,15 @@ include_directories(${SDL2_INCLUDE_DIRS})
 
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 
-find_package(osvr REQUIRED)
-
 set(openvr_source_files
 	${CMAKE_CURRENT_LIST_DIR}/openvr_api_public.cpp
 	${CMAKE_CURRENT_LIST_DIR}/hmderrors_public.cpp
 )
+
+find_package(osvr REQUIRED)
+find_package(osvrRenderManager REQUIRED)
 add_library(openvr_api SHARED ${openvr_source_files})
-target_link_libraries(openvr_api PRIVATE osvr::osvrClientKit m ${SDL2_LIBRARY})
+target_link_libraries(openvr_api PRIVATE m ${SDL2_LIBRARY} osvr::osvrClientKit osvrRenderManager::osvrRenderManagerCpp)
 #set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_DIR}/)
 
 find_package(OpenGL REQUIRED)
