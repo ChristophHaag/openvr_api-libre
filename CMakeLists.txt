@@ -11,11 +11,31 @@ set(openvr_source_files
 	${CMAKE_CURRENT_LIST_DIR}/hmderrors_public.cpp
 )
 
-find_package(osvr REQUIRED)
-find_package(osvrRenderManager REQUIRED)
+
+OPTION(OSVR_LIBOPENVR "OSVR Backend" ON)
+OPTION(OPENHMD_LIBOPENVR "OpenVR Backend" ON)
+
 add_library(openvr_api SHARED ${openvr_source_files})
-target_link_libraries(openvr_api PRIVATE m ${SDL2_LIBRARY} osvr::osvrClientKit osvrRenderManager::osvrRenderManagerCpp)
-#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_DIR}/)
+
+set(BACKEND_LIBS "")
+
+if (OSVR_LIBOPENVR)
+    add_definitions(-DBUILD_OSVR)
+    find_package(osvr REQUIRED)
+    find_package(osvrRenderManager REQUIRED)
+    set (BACKEND_LIBS ${BACKEND_LIBS} osvr::osvrClientKit osvrRenderManager::osvrRenderManagerCpp)
+endif(OSVR_LIBOPENVR)
+
+if (OPENHMD_LIBOPENVR)
+    add_definitions(-DBUILD_OPENHMD)
+    include_directories("${CMAKE_SOURCE_DIR}/external/openhmd/include")
+    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/external/openhmd/cmake/")
+    add_subdirectory(./external/openhmd)
+    set (BACKEND_LIBS ${BACKEND_LIBS} openhmd-shared)
+    add_dependencies(openvr_api openhmd-shared)
+endif(OPENHMD_LIBOPENVR)
+
+target_link_libraries(openvr_api PRIVATE m ${SDL2_LIBRARY} ${BACKEND_LIBS})
 
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
@@ -30,7 +50,7 @@ add_executable(hellovr_opengl
   hellovr_opengl_main.cpp
 )
 target_link_libraries(hellovr_opengl
-  openvr_api
+  openvr_api #TODO: build one for each
   ${OPENGL_LIBRARIES}
   ${GLEW_LIBRARIES}
   ${SDL2_LIBRARIES}
