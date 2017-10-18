@@ -23,6 +23,7 @@
 
 #include <osvr/ClientKit/Context.h>
 #include <osvr/ClientKit/Interface.h>
+#include <osvr/ClientKit/InterfaceStateC.h>
 
 #include <osvr/RenderKit/RenderManager.h>
 
@@ -46,6 +47,8 @@ int w;
 int h;
 osvr::renderkit::OSVR_ProjectionMatrix projl;
 osvr::renderkit::OSVR_ProjectionMatrix projr;
+
+osvr::clientkit::Interface head;
 
 typedef void* (*VRClientCoreFactoryFn)(const char *pInterfaceName, int *pReturnCode);
 
@@ -129,6 +132,7 @@ uint32_t VR_InitInternal( EVRInitError *peError, vr::EVRApplicationType eApplica
 {
         printf("initinternal create OSVR context\n");
         context = new osvr::clientkit::ClientContext("de.haagch.SteamVR-OSVR");
+        head = context->getInterface("/me/head");
 
 
         *peError = VRInitError_None;
@@ -725,13 +729,38 @@ public:
             //ohmd_device_setf(hmd, OHMD_ROTATION_QUAT, zero);
             //ohmd_device_setf(hmd, OHMD_POSITION_VECTOR, zero);
 
-            float quat[4];
-            //ohmd_device_getf(hmd, OHMD_ROTATION_QUAT, quat);
-            if (fulldbg) printf("osvr rotation quat %f %f %f %f\n", quat[0], quat[1], quat[2], quat[3]);
+            OSVR_ReturnCode ret = OSVR_RETURN_FAILURE;
+            OSVR_PoseState state;
+            OSVR_TimeValue timestamp;
+            do {
+                if (fulldbg) std::cout << "Trying to get pose..." << std::endl;
+                context->update();
+                ret = osvrGetPoseState(head.get(), &timestamp, &state);
+            } while (OSVR_RETURN_SUCCESS != ret);
+            if (fulldbg) std::cout << "Got pose!" << std::endl;
 
-            // CAREFUL: w x y z
-            glm::quat rotation(quat[3], quat[0], quat[1], quat[2]);
-            glm::mat3 m = glm::mat3_cast(rotation);
+            /*
+            std::cout << "Got POSE state: Position = ("
+            << state.translation.data[0] << ", "
+            << state.translation.data[1] << ", "
+            << state.translation.data[2] << "), orientation = ("
+            << osvrQuatGetW(&(state.rotation)) << ", ("
+            << osvrQuatGetX(&(state.rotation)) << ", "
+            << osvrQuatGetY(&(state.rotation)) << ", "
+            << osvrQuatGetZ(&(state.rotation)) << ")"
+            << std::endl;
+            */
+
+            glm::quat rotation(osvrQuatGetW(&(state.rotation)), osvrQuatGetX(&(state.rotation)), osvrQuatGetY(&(state.rotation)), osvrQuatGetZ(&(state.rotation)));
+            if (fulldbg) printf("osvr rotation quat %f %f %f %f\n", rotation[0], rotation[1], rotation[2], rotation[3]);
+
+            glm::vec3 translation(state.translation.data[0], state.translation.data[1], state.translation.data[2]);
+            if (true) printf("osvr pos %f %f %f\n", translation[0], translation[1], translation[2]);
+
+            //glm::mat3 m = glm::mat3_cast(rotation);
+
+            glm::mat4 m = glm::mat4_cast(rotation);
+            glm::translate(m, translation);
 
             pRenderPoseArray[0].mDeviceToAbsoluteTracking.m[0][0] = m[0][0];
             pRenderPoseArray[0].mDeviceToAbsoluteTracking.m[0][1] = m[0][1];
