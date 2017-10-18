@@ -92,9 +92,9 @@ void *VR_GetGenericInterface(const char *pchInterfaceVersion, EVRInitError *peEr
         backend = getenv ("OPENVR_BACKEND");
         if (backend==NULL) {
             printf ("Choose backend OSVR or OPENHMD with OPENVR_BACKEND=[OSVR|OPENHMD]\n");
-#ifdef BUILD_OSVR
+#if defined(BUILD_OSVR)
             backend = strdup("OSVR"); // default
-#elif BUILD_OPENHMD
+#elif defined(BUILD_OPENHMD)
             backend = strdup("OPENHMD");
 #else
 #error "No backend built!"
@@ -105,20 +105,22 @@ void *VR_GetGenericInterface(const char *pchInterfaceVersion, EVRInitError *peEr
 #if !(defined(BUILD_OSVR))
             printf("Error: OSVR backend chosen but not built!\n");
             return nullptr;
-#endif
+#else
             ivrsystem = new OSVRHMDIVRSystem(); //make sure ivrsystem is always going to be initialized first so implementations can do their base init here
             ivrcompositor = new OSVRHMDCompositor();
             ivrrendermodels = new OSVRHMDRenderModels();
             ivroverlay = new OSVRHMDOverlay();
+#endif
         } else if (strcmp(backend, "OPENHMD") == 0) {
 #if !(defined(BUILD_OPENHMD))
             printf("Error: OpenHMD backend chosen but not built!\n");
             return nullptr;
-#endif
+#else
             ivrsystem = new OpenHMDIVRSystem();
             ivrcompositor = new OpenHMDCompositor();
             ivrrendermodels = new OpenHMDRenderModels();
             ivroverlay = new OpenHMDOverlay();
+#endif
         }
     }
 
