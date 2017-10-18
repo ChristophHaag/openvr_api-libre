@@ -50,11 +50,11 @@ Check positional tracking in WaitGetPoses.
 
 # How to use and hack it
 
-git clone --recursive https://github.com/ChristophHaag/openvr_api-libre
-cd openvr_api-libre
-cmake .
-make -j12
-./hellovr_opengl
+    git clone --recursive https://github.com/ChristophHaag/openvr_api-libre
+    cd openvr_api-libre
+    cmake .
+    make -j12
+    ./hellovr_opengl
 
 hellovr_opengl is linked to libopenvr_api.so in the same directory, no special setup needed when you already have it in /usr/lib.
 
