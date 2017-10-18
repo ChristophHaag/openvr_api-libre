@@ -1,15 +1,15 @@
 # What is this
 
-The aim is to implement libopenvr_api.dll/libopenvr_api.so on top of OSVR.
+The aim is to implement libopenvr_api.dll/libopenvr_api.so on top of a libre runtime like OpenHMD or OSVR SDK.
 
-Games and applications using OpenVR/SteamVR will ship this library (or rely on the library to be present in /usr/lib/).
+Games and applications using the OpenVR API ship the libopenvr_api.so library or rely on it to be present in /usr/lib/.
 
-Valve's libopenvr_api is just a wrapper around their proprietary and x86-only SteamVR runtime. However, libopenvr_api is documented and "open source", so other backends than SteamVR can be implemented, in this case OpenHMD.
+Valve's libopenvr_api.so is a wrapper. It loads the implementation of the OpenVR classes from their closed source and x86-only SteamVR runtime. However, libopenvr_api is documented and "open source", so other backends than SteamVR can be implemented like OpenHMD or OSVR.
 
-
-Once this library is finished, the libopenvr_api shipped in any SteamVR application or game can be swapped out and the application can be used with only the OSVR drivers, Steam and SteamVR are not needed.
+Once this library is finished, the libopenvr_api shipped in any SteamVR application or game can be swapped out with this one and the application can be used with only the OSVR or OpenHMD drivers, Steam and SteamVR are not needed.
 
 # Status
+
 
 
 ## Rendering

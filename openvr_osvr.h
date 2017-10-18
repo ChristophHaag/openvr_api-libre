@@ -19,8 +19,8 @@ osvr::renderkit::OSVR_ProjectionMatrix projl;
 osvr::renderkit::OSVR_ProjectionMatrix projr;
 
 osvr::clientkit::Interface head;
-int w;
-int h;
+int osvr_w;
+int osvr_h;
 
 class OSVRHMDRenderModels : public vr::IVRRenderModels {
     EVRRenderModelError LoadRenderModel_Async( const char *pchRenderModelName, RenderModel_t **ppRenderModel ) {
@@ -177,14 +177,14 @@ public:
         std::vector<osvr::renderkit::RenderInfo> renderInfo = render->GetRenderInfo();
         //w = ri.viewport.width;
         //h = ri.viewport.height;
-        w = 0;
-        h = 0;
+        osvr_w = 0;
+        osvr_h = 0;
         for (size_t i = 0; i < renderInfo.size(); i++) {
             std::cout << i << ": w,h " << renderInfo.at(i).viewport.width << "," << renderInfo.at(i).viewport.height << std::endl;
-            h = renderInfo.at(i).viewport.height;
-            w += renderInfo.at(i).viewport.width;
+            osvr_h = renderInfo.at(i).viewport.height;
+            osvr_w += renderInfo.at(i).viewport.width;
         }
-        std::cout << "set w,h to " << w << "," << h << std::endl;
+        std::cout << "set w,h to " << osvr_w << "," << osvr_h << std::endl;
 
         projl = renderInfo.at(0).projection;
         projr = renderInfo.at(1).projection;
@@ -192,8 +192,8 @@ public:
 
     void GetRecommendedRenderTargetSize( uint32_t *pnWidth, uint32_t *pnHeight ) {
         //TODO:
-        *pnWidth = w;
-        *pnHeight = h;
+        *pnWidth = osvr_w;
+        *pnHeight = osvr_h;
         printf("recommended render target size: %dx%d\n", *pnWidth, *pnHeight);
     }
 

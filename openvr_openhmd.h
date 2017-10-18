@@ -3,7 +3,8 @@
 namespace vr {
 ohmd_context* ctx;
 ohmd_device* hmd;
-
+int openhmd_w;
+int openhmd_h;
 // gets float values from the device and prints them
 void print_infof(ohmd_device* hmd, const char* name, int len, ohmd_float_value val)
 {
@@ -153,8 +154,7 @@ class OpenHMDRenderModels : public IVRRenderModels {
 
 class OpenHMDIVRSystem : public IVRSystem
 {
-    int w;
-    int h;
+
 public:
     OpenHMDIVRSystem() {
 
@@ -207,14 +207,14 @@ public:
             print_infoi(hmd, "digital button count:", 1, OHMD_BUTTON_COUNT);
         }
 
-        ohmd_device_geti(hmd, OHMD_SCREEN_HORIZONTAL_RESOLUTION, &w);
-        ohmd_device_geti(hmd, OHMD_SCREEN_VERTICAL_RESOLUTION, &h);
+        ohmd_device_geti(hmd, OHMD_SCREEN_HORIZONTAL_RESOLUTION, &openhmd_w);
+        ohmd_device_geti(hmd, OHMD_SCREEN_VERTICAL_RESOLUTION, &openhmd_h);
     }
 
     void GetRecommendedRenderTargetSize( uint32_t *pnWidth, uint32_t *pnHeight ) {
         //TODO:
-        *pnWidth = w;
-        *pnHeight = h;
+        *pnWidth = openhmd_w;
+        *pnHeight = openhmd_h;
         printf("recommended render target size: %dx%d\n", *pnWidth, *pnHeight);
     }
 
@@ -587,9 +587,7 @@ private:
     SDL_GLContext clientcontext;
     SDL_GLContext compositorcontext;
     SDL_Renderer *renderer;
-    int w;
     int eyew;
-    int h;
     SDL_Texture *texture;
     GLuint shader_program;
     GLint texture_location;
@@ -648,24 +646,26 @@ private:
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint)*2*3, indexData, GL_STATIC_DRAW);
         glBindVertexArray(0);
     }
-public:
-    OpenHMDCompositor() {
+
+    bool initdone = false;
+    // can't do this in the constructor because we need to wait until the client window is definitely created.
+    // we know for sure this is the case when it starts submitting frames, so lazy init in then
+    void initCompositor() {
+        initdone = true;
         SDL_Init(SDL_INIT_VIDEO);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 
-
-        ohmd_device_geti(hmd, OHMD_SCREEN_HORIZONTAL_RESOLUTION, &w);
-        eyew = w/2;
-        ohmd_device_geti(hmd, OHMD_SCREEN_VERTICAL_RESOLUTION, &h);
+        eyew = openhmd_w/2;
 
         clientwindow = SDL_GL_GetCurrentWindow();
+        printf("current SDL window %p\n", clientwindow);
         clientcontext = SDL_GL_GetCurrentContext();
         printf("current GL context %p\n", clientcontext);
 
 
         uint32_t windowflags = SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_BORDERLESS;
-        compositorwindow = SDL_CreateWindow("libopenVR Compositor (OpenHMD)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, windowflags);
+        compositorwindow = SDL_CreateWindow("libopenVR Compositor (OpenHMD)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, openhmd_w, openhmd_h, windowflags);
         if (compositorwindow == NULL) {
             printf("Could not create window: %s\n", SDL_GetError());
         }
@@ -681,23 +681,23 @@ public:
         // credit: https://github.com/progschj/OpenGL-Examples/blob/master/03texture.cpp
 
         std::string vertex_source =
-            "#version 330\n"
-            "layout(location = 0) in vec4 vposition;\n"
-            "layout(location = 1) in vec2 vtexcoord;\n"
-            "out vec2 ftexcoord;\n"
-            "void main() {\n"
-            "   ftexcoord = vtexcoord;\n"
-            "   gl_Position = vposition;\n"
-            "}\n";
+        "#version 330\n"
+        "layout(location = 0) in vec4 vposition;\n"
+        "layout(location = 1) in vec2 vtexcoord;\n"
+        "out vec2 ftexcoord;\n"
+        "void main() {\n"
+        "   ftexcoord = vtexcoord;\n"
+        "   gl_Position = vposition;\n"
+        "}\n";
 
         std::string fragment_source =
-            "#version 330\n"
-            "uniform sampler2D tex;\n" // texture uniform
-            "in vec2 ftexcoord;\n"
-            "layout(location = 0) out vec4 FragColor;\n"
-            "void main() {\n"
-            "   FragColor = texture(tex, ftexcoord);\n"
-            "}\n";
+        "#version 330\n"
+        "uniform sampler2D tex;\n" // texture uniform
+        "in vec2 ftexcoord;\n"
+        "layout(location = 0) out vec4 FragColor;\n"
+        "void main() {\n"
+        "   FragColor = texture(tex, ftexcoord);\n"
+        "}\n";
 
         GLuint vertex_shader, fragment_shader;
 
@@ -739,7 +739,11 @@ public:
         mkvaovbo(false);
 
         SDL_GL_MakeCurrent(clientwindow, clientcontext);
+    }
 
+public:
+
+    OpenHMDCompositor() {
     }
 
     void SetTrackingSpace( ETrackingUniverseOrigin eOrigin ) {
@@ -806,6 +810,10 @@ public:
     }
 
     EVRCompositorError Submit( EVREye eEye, const Texture_t *pTexture, const VRTextureBounds_t* pBounds = 0, EVRSubmitFlags nSubmitFlags = Submit_Default ) {
+        if (!initdone) {
+            initCompositor();
+        }
+
         if (fulldbg) {
             printf("submit frame - ");
             if (pTexture->eType == ETextureType::TextureType_OpenGL) {
@@ -852,7 +860,7 @@ public:
         // check for errors
         GLenum error = glGetError();
         if(error != GL_NO_ERROR) {
-            std::cerr << error << std::endl;
+            std::cerr << "on submit frame: OpenGL error: " << error << std::endl;
         }
 
         if (eEye == EVREye::Eye_Right) {
