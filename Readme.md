@@ -10,17 +10,15 @@ Once this library is finished, the libopenvr_api shipped in any SteamVR applicat
 
 # Status
 
+Note: hellovr_opengl draws upside down in its preview window. That's not a bug of this libopenvr_api, hellovr_opengl upstream should fix that.
 
+## OpenHMD
 
-## Rendering
+### Rendering
 
-hellovr_opengl runs and renders something to its preview window.
+Creates fullscreen window with the HMD's resolution via SDL and displays the textures side by side.
 
-The frames for each eye are submitted to libopenvr as OpenGL texture ids. The VR compositor is an SDL fullscreen window  with an OpenGL context that is shared with the rendering application, currently it displays these textures as they are.
-
-Compositor TODO: Apply OpenHMD's universal distortion shader before displaying.
-
-## Orientation Tracking
+### Orientation Tracking
 
 The HMD is hardcoded as deviceindex 0, controller support has to wait until the HMD tracking works.
 
@@ -33,14 +31,33 @@ GetEyeToHeadTransform() - currently identity matrix
 HMD orientation that gets updated every frame:
 WaitGetPoses() - hmd quaternion converted to matrix
 
-Current status: orientation works and scale looks okay, but cubes look huge.
+### TODO
+* apply OpenHMD's distortion shader before displaying the textures
+* Check all the matrices (I think the cubes are too big but could be coincidence)
+* Controllers, wait for OpenHMD's controller API
+
+## OSVR
+
+### Rendering
+
+not much yet
+
+### Orientation Tracking
+
+### TODO
+
+Check positional tracking in WaitGetPoses.
 
 # How to use and hack it
 
-Build the openvr branch of https://github.com/ChristophHaag/OpenHMD/tree/openvr with cmake (automake suppport will be added later) and by default it will build libopenvr_api.so.
+git clone --recursive https://github.com/ChristophHaag/openvr_api-libre
+cd openvr_api-libre
+cmake .
+make -j12
+./hellovr_opengl
 
-For easy testing hellovr_opengl is built.
+hellovr_opengl is linked to libopenvr_api.so in the same directory, no special setup needed when you already have it in /usr/lib.
 
-The entire implementation of the relevant classes is contained in openvr_api_public.cpp. Only the three main classes are implemented, and many methods are still unimplemented.
+You can customize the build with `cmake -DOPENHMD_LIBOPENVR=OFF` and `cmake -DOSVR_LIBOPENVR=OFF`. At runtime you can choose one of the backends with the environment variable `OPENVR_BACKEND=OPENHMD` or `OPENVR_BACKEND=OSVR`.
 
-There are many files copied from Valve's openvr repository. Most will be deleted once there is no dependency to them left.
+openvr_api_public.cpp is the main file of the library. The implementation of the classes is in `openvr_osvr.h` and `openvr_openhmd.h`. Not all classes and many methods are not implemented.
