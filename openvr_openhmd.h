@@ -226,40 +226,35 @@ public:
             printf("right ");
         }
 
-
-        float fov;
-        float aspect;
+        float projection[16];
         if (eEye == EVREye::Eye_Left) {
-            ohmd_device_getf(hmd, OHMD_LEFT_EYE_FOV, &fov);
-            ohmd_device_getf(hmd, OHMD_LEFT_EYE_ASPECT_RATIO, &aspect);
+            ohmd_device_getf(hmd, OHMD_LEFT_EYE_GL_PROJECTION_MATRIX, projection);
         } else {
-            ohmd_device_getf(hmd, OHMD_RIGHT_EYE_FOV, &fov);
-            ohmd_device_getf(hmd, OHMD_RIGHT_EYE_ASPECT_RATIO, &aspect);
+            ohmd_device_getf(hmd, OHMD_RIGHT_EYE_GL_PROJECTION_MATRIX, projection);
         }
-        printf(" with fov %f, aspect %f: ", fov, aspect);
-        glm::mat4 Projection = glm::perspective(fov, aspect, fNearZ, fFarZ);
-        printf("%s\n", glm::to_string(Projection).c_str());
+        
+        //printf("%s\n", projection[0]);
 
         HmdMatrix44_t matrix;
-        matrix.m[0][0] = Projection[0][0];
-        matrix.m[0][1] = Projection[0][1];
-        matrix.m[0][2] = Projection[0][2];
-        matrix.m[0][3] = Projection[0][3];
+        matrix.m[0][0] = projection[0];
+        matrix.m[0][1] = projection[4];
+        matrix.m[0][2] = projection[8];
+        matrix.m[0][3] = projection[12];
 
-        matrix.m[1][0] = Projection[1][0];
-        matrix.m[1][1] = Projection[1][1];
-        matrix.m[1][2] = Projection[1][2];
-        matrix.m[1][3] = Projection[1][3];
+        matrix.m[1][0] = projection[1];
+        matrix.m[1][1] = projection[5];
+        matrix.m[1][2] = projection[9];
+        matrix.m[1][3] = projection[13];
 
-        matrix.m[2][0] = Projection[2][0];
-        matrix.m[2][1] = Projection[2][1];
-        matrix.m[2][2] = Projection[2][2];
-        matrix.m[2][3] = Projection[2][3];
+        matrix.m[2][0] = projection[2];
+        matrix.m[2][1] = projection[6];
+        matrix.m[2][2] = projection[10];
+        matrix.m[2][3] = projection[14];
 
-        matrix.m[3][0] = Projection[3][0];
-        matrix.m[3][1] = Projection[3][1];
-        matrix.m[3][2] = Projection[3][2];
-        matrix.m[3][3] = Projection[3][3];
+        matrix.m[3][0] = projection[3];
+        matrix.m[3][1] = projection[7];
+        matrix.m[3][2] = projection[11];
+        matrix.m[3][3] = projection[15];
 
         return matrix;
     }
