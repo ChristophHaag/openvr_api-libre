@@ -35,7 +35,7 @@ if (OPENHMD_LIBOPENVR)
     add_dependencies(openvr_api openhmd-shared)
 endif(OPENHMD_LIBOPENVR)
 
-target_link_libraries(openvr_api PRIVATE m ${SDL2_LIBRARY} ${BACKEND_LIBS})
+target_link_libraries(openvr_api PRIVATE m ${SDL2_LIBRARIES} ${BACKEND_LIBS})
 
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
