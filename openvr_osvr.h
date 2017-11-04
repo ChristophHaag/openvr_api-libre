@@ -551,6 +551,10 @@ public:
         printf("acknowledge quit prompt\n");
         //TODO:
     }
+    
+    void GetOutputDevice( uint64_t *pnDevice, ETextureType textureType, VkInstance_T *pInstance = nullptr ) {
+        printf("getoutputdevice\n");
+    }
 };
 
 class OSVRHMDCompositor : public IVRCompositor
@@ -913,6 +917,16 @@ public:
         //TODO:
         return 0;
     }
+
+    EVRCompositorError SubmitExplicitTimingData() {
+        printf("submit explicit timing data\n");
+        return VRCompositorError_None;
+    }
+
+    void SetExplicitTimingMode( bool bExplicitTimingMode ) {
+        printf("set explicit timing mode\n");
+    }
+
 };
 
 
@@ -1252,6 +1266,10 @@ public:
     VRMessageOverlayResponse ShowMessageOverlay( const char* pchText, const char* pchCaption, const char* pchButton0Text, const char* pchButton1Text = nullptr, const char* pchButton2Text = nullptr, const char* pchButton3Text = nullptr ) {
         return VRMessageOverlayResponse::VRMessageOverlayResponse_ButtonPress_0;
     }
+
+    void CloseMessageOverlay() {
+    }
+
 };
 
 }
