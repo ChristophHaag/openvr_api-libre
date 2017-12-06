@@ -918,6 +918,10 @@ public:
         return 0;
     }
 
+    void SetExplicitTimingMode( EVRCompositorTimingMode eTimingMode ) {
+	    printf("Set explicit timing mode\n");
+    }
+
     EVRCompositorError SubmitExplicitTimingData() {
         printf("submit explicit timing data\n");
         return VRCompositorError_None;
@@ -1178,6 +1182,15 @@ public:
     EVROverlayError MoveGamepadFocusToNeighbor( EOverlayDirection eDirection, VROverlayHandle_t ulFrom ) {
         return VROverlayError_None;
     }
+
+    EVROverlayError SetOverlayDualAnalogTransform( VROverlayHandle_t ulOverlay, EDualAnalogWhich eWhich, const HmdVector2_t & vCenter, float fRadius ) {
+	    return VROverlayError_None;
+    }
+
+    EVROverlayError GetOverlayDualAnalogTransform( VROverlayHandle_t ulOverlay, EDualAnalogWhich eWhich, HmdVector2_t *pvCenter, float *pfRadius ) {
+	    return VROverlayError_None;
+    }
+
 
     EVROverlayError SetOverlayTexture( VROverlayHandle_t ulOverlayHandle, const Texture_t *pTexture ) {
         return VROverlayError_None;
