@@ -22,6 +22,83 @@ osvr::clientkit::Interface head;
 int osvr_w;
 int osvr_h;
 
+static GLfloat matspec[4] = {0.5, 0.5, 0.5, 0.0};
+static float red_col[] = {1.0, 0.0, 0.0};
+static float grn_col[] = {0.0, 1.0, 0.0};
+static float blu_col[] = {0.0, 0.0, 1.0};
+static float yel_col[] = {1.0, 1.0, 0.0};
+static float lightblu_col[] = {0.0, 1.0, 1.0};
+static float pur_col[] = {1.0, 0.0, 1.0};
+
+void draw_cube(double radius) {
+    GLfloat matspec[4] = {0.5, 0.5, 0.5, 0.0};
+    glPushMatrix();
+    glScaled(radius, radius, radius);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, matspec);
+    glMaterialf(GL_FRONT, GL_SHININESS, 64.0);
+    glBegin(GL_POLYGON);
+    glColor3fv(lightblu_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, lightblu_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, lightblu_col);
+    glNormal3f(0.0, 0.0, -1.0);
+    glVertex3f(1.0, 1.0, -1.0);
+    glVertex3f(1.0, -1.0, -1.0);
+    glVertex3f(-1.0, -1.0, -1.0);
+    glVertex3f(-1.0, 1.0, -1.0);
+    glEnd();
+    glBegin(GL_POLYGON);
+    glColor3fv(blu_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blu_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, blu_col);
+    glNormal3f(0.0, 0.0, 1.0);
+    glVertex3f(-1.0, 1.0, 1.0);
+    glVertex3f(-1.0, -1.0, 1.0);
+    glVertex3f(1.0, -1.0, 1.0);
+    glVertex3f(1.0, 1.0, 1.0);
+    glEnd();
+    glBegin(GL_POLYGON);
+    glColor3fv(yel_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, yel_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, yel_col);
+    glNormal3f(0.0, -1.0, 0.0);
+    glVertex3f(1.0, -1.0, 1.0);
+    glVertex3f(-1.0, -1.0, 1.0);
+    glVertex3f(-1.0, -1.0, -1.0);
+    glVertex3f(1.0, -1.0, -1.0);
+    glEnd();
+    glBegin(GL_POLYGON);
+    glColor3fv(grn_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grn_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grn_col);
+    glNormal3f(0.0, 1.0, 0.0);
+    glVertex3f(1.0, 1.0, 1.0);
+    glVertex3f(1.0, 1.0, -1.0);
+    glVertex3f(-1.0, 1.0, -1.0);
+    glVertex3f(-1.0, 1.0, 1.0);
+    glEnd();
+    glBegin(GL_POLYGON);
+    glColor3fv(pur_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, pur_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, pur_col);
+    glNormal3f(-1.0, 0.0, 0.0);
+    glVertex3f(-1.0, 1.0, 1.0);
+    glVertex3f(-1.0, 1.0, -1.0);
+    glVertex3f(-1.0, -1.0, -1.0);
+    glVertex3f(-1.0, -1.0, 1.0);
+    glEnd();
+    glBegin(GL_POLYGON);
+    glColor3fv(red_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, red_col);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, red_col);
+    glNormal3f(1.0, 0.0, 0.0);
+    glVertex3f(1.0, -1.0, 1.0);
+    glVertex3f(1.0, -1.0, -1.0);
+    glVertex3f(1.0, 1.0, -1.0);
+    glVertex3f(1.0, 1.0, 1.0);
+    glEnd();
+    glPopMatrix();
+}
+
 class OSVRHMDRenderModels : public vr::IVRRenderModels {
     EVRRenderModelError LoadRenderModel_Async( const char *pchRenderModelName, RenderModel_t **ppRenderModel ) {
         printf("rendermodel async load requested: %s\n", pchRenderModelName);
@@ -135,10 +212,91 @@ class OSVRHMDRenderModels : public vr::IVRRenderModels {
     }
 };
 
+
+osvr::renderkit::RenderBuffer colorBuffer;
+GLuint depthBuffer; //< Depth/stencil buffer to render into
+GLuint frameBuffer; //< Groups a color buffer and a depth buffer
+
+void RenderView(
+    size_t eye, //< Which eye are we rendering
+    const osvr::renderkit::RenderInfo& renderInfo, //< Info needed to render
+    GLuint frameBuffer, //< Frame buffer object to bind our buffers to
+    GLuint colorBuffer, //< Color buffer to render into
+    GLuint depthBuffer  //< Depth buffer to render into
+) {
+    // Make sure our pointers are filled in correctly.  The config file selects
+    // the graphics library to use, and may not match our needs.
+    if (renderInfo.library.OpenGL == nullptr) {
+        std::cerr
+        << "RenderView: No OpenGL GraphicsLibrary, this should not happen"
+        << std::endl;
+        return;
+    }
+
+    // Render to our framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+
+    // Set color and depth buffers for the frame buffer
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                              GL_RENDERBUFFER, depthBuffer);
+
+    // Set the list of draw buffers.
+    GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
+    glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers
+
+    // Always check that our framebuffer is ok
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "RenderView: Incomplete Framebuffer" << std::endl;
+        return;
+    }
+
+    // Set the viewport to cover the fraction of our render buffer that
+    // this eye is responsible for.  This is always the same width and
+    // height but shifts over by one width for each eye.
+    glViewport(static_cast<GLsizei>(eye * renderInfo.viewport.width), 0,
+               static_cast<GLsizei>(renderInfo.viewport.width),
+               static_cast<GLsizei>(renderInfo.viewport.height));
+
+    // Set the OpenGL projection matrix
+    GLdouble projection[16];
+    osvr::renderkit::OSVR_Projection_to_OpenGL(projection,
+                                               renderInfo.projection);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glMultMatrixd(projection);
+
+    /// Put the transform into the OpenGL ModelView matrix
+    GLdouble modelView[16];
+    osvr::renderkit::OSVR_PoseState_to_OpenGL(modelView, renderInfo.pose);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glMultMatrixd(modelView);
+
+    // Only on the first eye, clear the screen to black and clear depth.
+    // glClear() does not respect the viewport, so will clear all earlier
+    // eyes on the later renderings if we call it then.
+    if (eye == 0) {
+        glClearColor(0, 0, 0, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+
+    // =================================================================
+    // This is where we draw our world and hands and any other objects.
+    // We're in World Space.  To find out about where to render objects
+    // in OSVR spaces (like left/right hand space) we need to query the
+    // interface and handle the coordinate tranforms ourselves.
+
+    // Draw a cube with a 5-meter radius as the room we are floating in.
+    draw_cube(5.0);
+}
+
+
 class OSVRHMDIVRSystem : public IVRSystem
 {
-
 public:
+
+
     OSVRHMDIVRSystem() {
 
         context = new osvr::clientkit::ClientContext("de.haagch.SteamVR-OSVR");
@@ -168,7 +326,7 @@ public:
         }
 
         osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = ret.library.OpenGL;
-        glEnable(GL_DEPTH_TEST);
+        //glEnable(GL_DEPTH_TEST);
 
         //render->AddRenderCallback("/", DrawWorld);
 
@@ -188,6 +346,57 @@ public:
 
         projl = renderInfo.at(0).projection;
         projr = renderInfo.at(1).projection;
+
+        //osvr example
+        // to handle all of the eyes we need.
+
+        glGenFramebuffers(1, &frameBuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+
+        GLuint colorBufferName = 0;
+        glGenTextures(1, &colorBufferName);
+        osvr::renderkit::RenderBuffer rb;
+        rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
+        rb.OpenGL->colorBufferName = colorBufferName;
+        colorBuffer = rb;
+        glBindTexture(GL_TEXTURE_2D, colorBufferName);
+        int width = static_cast<int>(renderInfo[0].viewport.width * renderInfo.size());
+        int height = static_cast<int>(renderInfo[0].viewport.height);
+
+        // the first should become GL_RGB.
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, 0);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        glGenRenderbuffers(1, &depthBuffer);
+        glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+
+        std::vector<osvr::renderkit::RenderBuffer> colorBuffers;
+        double fraction = 1.0 / renderInfo.size();
+        std::vector<osvr::renderkit::OSVR_ViewportDescription> NVCPs;
+        for (size_t i = 0; i < renderInfo.size(); i++) {
+            colorBuffers.push_back(colorBuffer);
+
+            osvr::renderkit::OSVR_ViewportDescription v;
+            v.left = fraction * i;
+            v.lower = 0.0;
+            v.width = fraction;
+            v.height = 1;
+            NVCPs.push_back(v);
+        }
+
+        if (!render->RegisterRenderBuffers(colorBuffers)) {
+            std::cerr << "RegisterRenderBuffers() returned false, cannot continue"
+            << std::endl;
+        } else {
+            std::cout << "Buffers registered" << std::endl;
+        }
+
     }
 
     void GetRecommendedRenderTargetSize( uint32_t *pnWidth, uint32_t *pnHeight ) {
@@ -681,10 +890,22 @@ public:
             }
         }
 
+
         //printf("texture pointer %p  ", pTexture->handle);
         uintptr_t handle = reinterpret_cast<uintptr_t>(pTexture->handle);
         unsigned int cast = (unsigned int) handle;
         GLuint gluint = reinterpret_cast<GLuint>(cast);
+
+        context->update();
+
+        std::vector< osvr::renderkit::RenderInfo > renderInfo = render->GetRenderInfo();
+
+        // Render into each buffer using the specified information.
+        for (size_t i = 0; i < renderInfo.size(); i++) {
+            RenderView(i, renderInfo[i], frameBuffer,
+                       colorBuffer.OpenGL->colorBufferName, depthBuffer);
+        }
+
         //printf("gluint %d\n", gluint);
         /*
          *            SDL_GL_MakeCurrent(compositorwindow, compositorcontext);
