@@ -427,6 +427,11 @@ public:
         return matrix;
     }
 
+    uint32_t GetArrayTrackedDeviceProperty( vr::TrackedDeviceIndex_t unDeviceIndex, ETrackedDeviceProperty prop, PropertyTypeTag_t propType, void *pBuffer, uint32_t unBufferSize, ETrackedPropertyError *pError = 0L ) {
+	    printf("GetArrayTrackedDeviceProperty\n");
+	    return 0;
+    }
+
     uint32_t GetStringTrackedDeviceProperty( vr::TrackedDeviceIndex_t unDeviceIndex, ETrackedDeviceProperty prop, VR_OUT_STRING() char *pchValue, uint32_t unBufferSize, ETrackedPropertyError *pError = 0L ) {
         const char *str = [&] {
             if (prop == Prop_TrackingSystemName_String)  {
@@ -511,6 +516,22 @@ public:
         printf("controller axis name from enum %d\n", eAxisType);
         //TODO:
         return "axis";
+    }
+
+    bool IsInputAvailable() {
+	    return true;
+    }
+
+    bool IsSteamVRDrawingControllers() {
+	    return false;
+    }
+
+    bool ShouldApplicationPause() {
+	    return false;
+    }
+
+    bool ShouldApplicationReduceRenderingWork() {
+	    return false;
     }
 
     bool CaptureInputFocus() {

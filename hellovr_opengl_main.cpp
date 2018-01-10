@@ -1,6 +1,5 @@
 //========= Copyright Valve Corporation ============//
-
-#include <shared/compat.h>
+#include <shared/compat.h> //TODO: this is the only line changed from upstream
 #include <SDL.h>
 #include <GL/glew.h>
 #include <SDL_opengl.h>
@@ -405,6 +404,7 @@ bool CMainApplication::BInit()
 		return false;
 	}
 
+	glewExperimental = GL_TRUE;
 	GLenum nGlewError = glewInit();
 	if (nGlewError != GLEW_OK)
 	{
@@ -539,8 +539,11 @@ void CMainApplication::Shutdown()
 	
 	if( m_pContext )
 	{
-		glDebugMessageControl( GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_FALSE );
-		glDebugMessageCallback(nullptr, nullptr);
+		if( m_bDebugOpenGL )
+		{
+			glDebugMessageControl( GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_FALSE );
+			glDebugMessageCallback(nullptr, nullptr);
+		}
 		glDeleteBuffers(1, &m_glSceneVertBuffer);
 
 		if ( m_unSceneProgramID )
@@ -703,7 +706,6 @@ void CMainApplication::RenderFrame()
 		RenderStereoTargets();
 		RenderCompanionWindow();
 
-                //printf("hellovr: submit GLuints %d, %d\n", leftEyeDesc.m_nResolveTextureId, leftEyeDesc.m_nResolveTextureId);
 		vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEyeDesc.m_nResolveTextureId, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 		vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );
 		vr::Texture_t rightEyeTexture = {(void*)(uintptr_t)rightEyeDesc.m_nResolveTextureId, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
@@ -952,7 +954,7 @@ bool CMainApplication::CreateAllShaders()
 bool CMainApplication::SetupTexturemaps()
 {
 	std::string sExecutableDirectory = Path_StripFilename( Path_GetExecutablePath() );
-	std::string strFullPath = Path_MakeAbsolute( "./cube_texture.png", sExecutableDirectory );
+	std::string strFullPath = Path_MakeAbsolute( "../cube_texture.png", sExecutableDirectory );
 	
 	std::vector<unsigned char> imageRGBA;
 	unsigned nImageWidth, nImageHeight;
@@ -1122,8 +1124,8 @@ void CMainApplication::AddCubeToScene( Matrix4 mat, std::vector<float> &vertdata
 //-----------------------------------------------------------------------------
 void CMainApplication::RenderControllerAxes()
 {
-	// don't draw controllers if somebody else has input focus
-	if( m_pHMD->IsInputFocusCapturedByAnotherProcess() )
+	// Don't attempt to update controllers if input is not available
+	if( !m_pHMD->IsInputAvailable() )
 		return;
 
 	std::vector<float> vertdataarray;
@@ -1408,9 +1410,9 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 		glBindVertexArray( 0 );
 	}
 
-	bool bIsInputCapturedByAnotherProcess = m_pHMD->IsInputFocusCapturedByAnotherProcess();
+	bool bIsInputAvailable = m_pHMD->IsInputAvailable();
 
-	if( !bIsInputCapturedByAnotherProcess )
+	if( bIsInputAvailable )
 	{
 		// draw the controller axis lines
 		glUseProgram( m_unControllerTransformProgramID );
@@ -1432,7 +1434,7 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 		if( !pose.bPoseIsValid )
 			continue;
 
-		if( bIsInputCapturedByAnotherProcess && m_pHMD->GetTrackedDeviceClass( unTrackedDevice ) == vr::TrackedDeviceClass_Controller )
+		if( !bIsInputAvailable && m_pHMD->GetTrackedDeviceClass( unTrackedDevice ) == vr::TrackedDeviceClass_Controller )
 			continue;
 
 		const Matrix4 & matDeviceToTracking = m_rmat4DevicePose[ unTrackedDevice ];
