@@ -12,7 +12,7 @@ set(openvr_source_files
 )
 
 
-OPTION(OSVR_LIBOPENVR "OSVR Backend" ON)
+OPTION(OSVR_LIBOPENVR "OSVR Backend" OFF)
 OPTION(OPENHMD_LIBOPENVR "OpenVR Backend" ON)
 
 add_library(openvr_api SHARED ${openvr_source_files})
