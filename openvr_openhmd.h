@@ -204,7 +204,7 @@ public:
             print_infof(hmd, "right eye aspect:", 1, OHMD_RIGHT_EYE_ASPECT_RATIO);
             print_infof(hmd, "distortion k:",     6, OHMD_DISTORTION_K);
 
-            print_infoi(hmd, "digital button count:", 1, OHMD_BUTTON_COUNT);
+            //print_infoi(hmd, "digital button count:", 1, OHMD_BUTTON_COUNT);
         }
 
         ohmd_device_geti(hmd, OHMD_SCREEN_HORIZONTAL_RESOLUTION, &openhmd_w);
@@ -785,10 +785,6 @@ public:
         pRenderPoseArray[0].bPoseIsValid = true;
 
         ohmd_ctx_update(ctx);
-        float zero[] = {.0, .0, .0, 1};
-
-        ohmd_device_setf(hmd, OHMD_ROTATION_QUAT, zero);
-        ohmd_device_setf(hmd, OHMD_POSITION_VECTOR, zero);
 
         float quat[4];
         ohmd_device_getf(hmd, OHMD_ROTATION_QUAT, quat);
